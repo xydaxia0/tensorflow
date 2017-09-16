@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,8 +18,12 @@ limitations under the License.
 namespace tensorflow {
 REGISTER7(BinaryOp, CPU, "Pow", functor::pow, float, Eigen::half, double, int32,
           int64, complex64, complex128);
+
 #if GOOGLE_CUDA
 REGISTER4(BinaryOp, GPU, "Pow", functor::pow, float, Eigen::half, double,
           int64);
 #endif
+#ifdef TENSORFLOW_USE_SYCL
+REGISTER2(BinaryOp, SYCL, "Pow", functor::pow, float, double);
+#endif // TENSORFLOW_USE_SYCL
 }  // namespace tensorflow

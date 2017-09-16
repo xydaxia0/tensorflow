@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,6 +48,9 @@ class DeviceNameUtils {
   // Returns a fully qualified device name given the parameters.
   static string FullName(const string& job, int replica, int task,
                          const string& type, int id);
+  // Returns a fully qualified device name given the parameters in legacy style.
+  static string LegacyName(const string& job, int replica, int task,
+                           const string& type, int id);
 
   struct ParsedName {
     void Clear() {
@@ -149,6 +152,11 @@ class DeviceNameUtils {
   static bool SplitDeviceName(StringPiece name, string* task, string* device);
 
   static string ParsedNameToString(const ParsedName& pn);
+
+  // Returns canonical and legacy full names for the given parsed
+  // device name 'pn'. The returned string names are often useful to
+  // lookup devices from a mapping.
+  static std::vector<string> GetNamesForDeviceMappings(const ParsedName& pn);
 };
 
 }  // namespace tensorflow

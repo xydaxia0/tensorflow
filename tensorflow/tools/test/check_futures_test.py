@@ -1,4 +1,4 @@
-# Copyright 2015 Google Inc. All Rights Reserved.
+# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ REQUIRED_FUTURES = frozenset(['absolute_import', 'division', 'print_function'])
 WHITELIST = [
     'python/platform/control_imports.py',
     'tools/docker/jupyter_notebook_config.py',
+    'tools/ci_build/update_version.py',
 ]
 
 # Tests that must *not* import division

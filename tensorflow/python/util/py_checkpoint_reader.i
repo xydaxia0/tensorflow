@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@ limitations under the License.
 %include "tensorflow/python/platform/base.i"
 
 %{
+#include "tensorflow/c/checkpoint_reader.h"
 #include "tensorflow/core/lib/core/status.h"
-#include "tensorflow/core/util/checkpoint_reader.h"
+#include "tensorflow/python/lib/core/ndarray_tensor.h"
 #include "tensorflow/python/lib/core/py_func.h"
+#include "tensorflow/python/lib/core/safe_ptr.h"
 %}
 
 %typemap(out) const tensorflow::checkpoint::TensorSliceReader::VarToShapeMap& {
@@ -126,5 +128,5 @@ def NewCheckpointReader(filepattern):
     return CheckpointReader(compat.as_bytes(filepattern), status)
 %}
 
-%include "tensorflow/core/util/checkpoint_reader.h"
+%include "tensorflow/c/checkpoint_reader.h"
 %unignoreall

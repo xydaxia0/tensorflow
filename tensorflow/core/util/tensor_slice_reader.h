@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -114,9 +114,6 @@ class TensorSliceReader {
 
   void LoadShard(int shard) const;
   void LoadAllShards() const;
-  void RegisterTensorSlice(const string& name, const TensorShape& shape,
-                           DataType type, const string& tag,
-                           const TensorSlice& slice) const;
 
   const TensorSliceSet* FindTensorSlice(
       const string& name, const TensorSlice& slice,
@@ -168,13 +165,18 @@ bool TensorSliceReader::CopySliceData(const string& name,
     CHECK_GE(idx, 0) << "Failed to find the index for filename " << fname;
     // We read a record in the corresponding sstable
     const string key = EncodeTensorNameSlice(name, slice_s);
-    CHECK(sss_[idx]->Get(key, &value))
-        << "Failed to seek to the record for tensor " << name << ", slice "
-        << slice_s.DebugString() << ": computed key = " << key;
+    if (!sss_[idx]->Get(key, &value)) {
+      VLOG(1) << "Failed to seek to the record for tensor " << name
+              << ", slice " << slice_s.DebugString()
+              << ": computed key = " << key;
+      return false;
+    }
     SavedTensorSlices sts;
-    CHECK(ParseProtoUnlimited(&sts, value))
-        << "Failed to parse the record for tensor " << name << ", slice "
-        << slice_s.DebugString() << ": computed key = " << key;
+    if (!ParseProtoUnlimited(&sts, value)) {
+      VLOG(1) << "Failed to parse the record for tensor " << name << ", slice "
+              << slice_s.DebugString() << ": computed key = " << key;
+      return false;
+    }
     CopyDataFromTensorSliceToTensorSlice(
         tss->shape(), slice_s, slice,
         checkpoint::TensorProtoData<T>(sts.data().data()), data);

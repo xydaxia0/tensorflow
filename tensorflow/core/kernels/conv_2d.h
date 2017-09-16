@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -68,6 +68,21 @@ struct SpatialConvolution {
                   int col_stride, const Eigen::PaddingType& padding) {
     SpatialConvolutionFunc(d, output, input, filter, row_stride, col_stride,
                            padding);
+  }
+};
+
+template <typename Device>
+struct SpatialConvolution<Device, Eigen::half> {
+  void operator()(const Device& d,
+                  typename TTypes<Eigen::half, 4>::Tensor output,
+                  typename TTypes<Eigen::half, 4>::ConstTensor input,
+                  typename TTypes<Eigen::half, 4>::ConstTensor filter,
+                  int row_stride, int col_stride,
+                  const Eigen::PaddingType& padding) {
+    output.device(d) =
+        Eigen::SpatialConvolution(input.cast<float>(), filter.cast<float>(),
+                                  col_stride, row_stride, padding)
+            .cast<Eigen::half>();
   }
 };
 
@@ -210,13 +225,13 @@ struct PadInput {
                   const std::array<int, NDIMS - 2>& padding_right,
                   typename TTypes<T, NDIMS, IndexType>::Tensor out,
                   TensorFormat format) {
-    Eigen::array<std::pair<IndexType, IndexType>, NDIMS> padding;
-    padding[GetTensorDimIndex<NDIMS - 2>(format, 'N')] = std::make_pair(0, 0);
+    Eigen::array<Eigen::IndexPair<IndexType>, NDIMS> padding;
+    padding[GetTensorDimIndex<NDIMS - 2>(format, 'N')] = {0, 0};
     for (int i = 0; i < NDIMS - 2; ++i) {
-      padding[GetTensorDimIndex<NDIMS - 2>(format, '0' + i)] =
-          std::make_pair(padding_left[i], padding_right[i]);
+      padding[GetTensorDimIndex<NDIMS - 2>(format, '0' + i)] = {
+          padding_left[i], padding_right[i]};
     }
-    padding[GetTensorDimIndex<NDIMS - 2>(format, 'C')] = std::make_pair(0, 0);
+    padding[GetTensorDimIndex<NDIMS - 2>(format, 'C')] = {0, 0};
     out.device(d) = in.pad(padding);
   }
 };
@@ -239,6 +254,26 @@ template <typename Device, typename T, int NDIMS>
 struct NCHWToNHWC {
   void operator()(const Device& d, typename TTypes<T, NDIMS>::ConstTensor in,
                   typename TTypes<T, NDIMS>::Tensor out);
+};
+
+// Converts a tensor from:
+//   [dim0, dim1, dim2]
+// to:
+//   [dim0, dim2, dim1]
+template <typename Device, typename T>
+struct SwapDimension1And2InTensor3 {
+  void operator()(const Device& d, const T* in,
+                  const gtl::ArraySlice<int64>& input_dims, T* out);
+};
+
+// Converts a tensor from:
+//   [dim0, dim1, dim2]
+// to:
+//   [dim2, dim1, dim0]
+template <typename Device, typename T>
+struct SwapDimension0And2InTensor3 {
+  void operator()(const Device& d, const T* in,
+                  const gtl::ArraySlice<int64>& input_dims, T* out);
 };
 
 // Reverses the effect of TransformFilter above.

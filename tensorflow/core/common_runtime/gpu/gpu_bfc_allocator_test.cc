@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,8 +29,6 @@ limitations under the License.
 #include "tensorflow/core/platform/test.h"
 #include "tensorflow/core/platform/test_benchmark.h"
 #include "tensorflow/core/platform/types.h"
-
-namespace gpu = ::perftools::gputools;
 
 namespace tensorflow {
 namespace {
@@ -326,6 +324,7 @@ static void BM_AllocationDelayed(int iters, int delay) {
   int size_index = 0;
 
   std::vector<void*> ptrs;
+  ptrs.reserve(delay);
   for (int i = 0; i < delay; i++) {
     ptrs.push_back(nullptr);
   }

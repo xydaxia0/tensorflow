@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -104,6 +104,7 @@ class DynamicPartitionOp : public DynamicPartitionOp_Shared {
       const auto data_flat = data->flat<T>();
       std::vector<Eigen::TensorMap<Eigen::Tensor<T, 1, Eigen::RowMajor>,
                                    Eigen::Aligned> > out_vec;
+      out_vec.reserve(num_partitions_);
       for (int p = 0; p < num_partitions_; p++) {
         out_vec.push_back(outputs[p]->vec<T>());
       }
@@ -124,6 +125,7 @@ class DynamicPartitionOp : public DynamicPartitionOp_Shared {
       // If data has extra dimensions, use Eigen slices
       std::vector<Eigen::TensorMap<Eigen::Tensor<T, 2, Eigen::RowMajor>,
                                    Eigen::Aligned> > out_flat;
+      out_flat.reserve(num_partitions_);
       for (int p = 0; p < num_partitions_; p++) {
         out_flat.push_back(outputs[p]->flat_outer_dims<T>());
       }

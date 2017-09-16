@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,9 @@ limitations under the License.
 #include "tensorflow/core/framework/allocator.h"
 #include "tensorflow/core/framework/device_base.h"
 #include "tensorflow/core/framework/graph.pb.h"
+#include "tensorflow/core/framework/node_def.pb.h"
 #include "tensorflow/core/framework/op_kernel.h"
+#include "tensorflow/core/framework/resource_mgr.h"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_testutil.h"
 #include "tensorflow/core/framework/types.h"
@@ -47,10 +49,6 @@ limitations under the License.
 namespace tensorflow {
 
 namespace test {
-
-// Return a NodeDef with the specified name/op/inputs.
-NodeDef Node(const string& name, const string& op,
-             const std::vector<string>& inputs);
 
 inline void SetOutputAttrs(OpKernelContext::Params* params,
                            std::vector<AllocatorAttributes>* attrs) {
@@ -83,6 +81,14 @@ class OpsTestBase : public ::testing::Test {
     gtl::STLDeleteElements(&tensors_);
     context_.reset(nullptr);
     params_.reset(nullptr);
+  }
+
+  // Allow kernel unit tests to run on GPU
+  void SetDevice(const DeviceType& device_type,
+                 std::unique_ptr<Device> device) {
+    CHECK(device_.get()) << "No device provided";
+    device_type_ = device_type;
+    device_ = std::move(device);
   }
 
   void set_node_def(const NodeDef& node_def) { node_def_.CopyFrom(node_def); }
@@ -150,6 +156,54 @@ class OpsTestBase : public ::testing::Test {
     }
   }
 
+  // Convenience function to add an input and populate it with the elements from
+  // an initializer list converting the types as needed.
+  template <typename T, typename SrcType>
+  void AddInputFromList(const TensorShape& shape,
+                        std::initializer_list<SrcType> data) {
+    CHECK_GT(input_types_.size(), inputs_.size())
+        << "Adding more inputs than types; perhaps you need to call MakeOp";
+    bool is_ref = IsRefType(input_types_[inputs_.size()]);
+    Tensor* input = new Tensor(device_->GetAllocator(AllocatorAttributes()),
+                               DataTypeToEnum<T>::v(), shape);
+    test::FillValues<T>(input, data);
+    tensors_.push_back(input);
+    if (is_ref) {
+      CHECK_EQ(RemoveRefType(input_types_[inputs_.size()]),
+               DataTypeToEnum<T>::v());
+      inputs_.push_back({&lock_for_refs_, input});
+    } else {
+      CHECK_EQ(input_types_[inputs_.size()], DataTypeToEnum<T>::v());
+      inputs_.push_back({nullptr, input});
+    }
+  }
+
+  // Adds a Resource type as input. If <container> is empty, uses the default
+  // container name.
+  template <typename T>
+  void AddResourceInput(const string& container, const string& name,
+                        T* resource) {
+    CHECK_GT(input_types_.size(), inputs_.size())
+        << "Adding more inputs than types; perhaps you need to call MakeOp";
+    ResourceMgr* rm = device_->resource_manager();
+    EXPECT_TRUE(
+        rm->Create(container == "" ? rm->default_container() : container, name,
+                   resource)
+            .ok());
+    TypeIndex type_index = MakeTypeIndex<T>();
+    ResourceHandle handle;
+    handle.set_device(device_->name());
+    handle.set_container(container);
+    handle.set_name(name);
+    handle.set_hash_code(type_index.hash_code());
+    handle.set_maybe_type_name(type_index.name());
+    Tensor* input = new Tensor(device_->GetAllocator(AllocatorAttributes()),
+                               DT_RESOURCE, TensorShape({}));
+    input->scalar<ResourceHandle>()() = handle;
+    tensors_.push_back(input);
+    inputs_.push_back({nullptr, input});
+  }
+
   // Runs an operation producing 'num_outputs' outputs.
   //
   // Returns the context's status after running the operation.
@@ -163,10 +217,13 @@ class OpsTestBase : public ::testing::Test {
     params_.get()->frame_iter = FrameAndIter(0, 0);
     params_.get()->inputs = &inputs_;
     params_.get()->op_kernel = kernel_.get();
+    step_container_.reset(new ScopedStepContainer(0, [](const string&) {}));
+    params_->step_container = step_container_.get();
     std::vector<AllocatorAttributes> attrs;
     test::SetOutputAttrs(params_.get(), &attrs);
     checkpoint::TensorSliceReaderCacheWrapper slice_reader_cache_wrapper;
     params_.get()->slice_reader_cache = &slice_reader_cache_wrapper;
+    params_.get()->resource_manager = device_.get()->resource_manager();
 
     context_.reset(new OpKernelContext(params_.get()));
     device_->Compute(kernel_.get(), context_.get());
@@ -204,6 +261,7 @@ class OpsTestBase : public ::testing::Test {
   std::unique_ptr<Device> device_;
 
   std::unique_ptr<OpKernel> kernel_;
+  std::unique_ptr<ScopedStepContainer> step_container_;
   NodeDef node_def_;
   DataTypeVector input_types_;
   DeviceType device_type_;
